@@ -96,6 +96,7 @@ cured_count = 'curedCount'
 dead_count = 'deadCount'
 cmt = 'comment'
 upt_time = 'updateTime'
+dt_time = 'datetime'
 
 def create_tbl_prov_data(cursor, data_stream = ''): 
     '''
@@ -129,7 +130,9 @@ def create_tbl_prov_data(cursor, data_stream = ''):
             elif temp_cnt not in c_dict.keys(): 
                 c_id += 1
                 c_dict[temp_cnt] = c_id
-            temp_prv_id = cursor.execute('select province_id from prov_lkup where provinceName = "{}"'.format(d[prv]))
+            
+            cursor.execute('select province_id from prov_lkup where provinceName = "{}"'.format(d[prv]))
+            temp_prv_id = cursor.fetchall()[0][0]
             
             # this is for newly added item: current confirmed people
             if c_cfm_count in d.keys():
@@ -250,9 +253,9 @@ if __name__ == '__main__':
 
     # province_name = json.load(open('province_name.json', 'r', encoding = 'utf8'))['results']
     
-    # # ==============================
-    # # province data part
-    # # ==============================
+    # ==============================
+    # province data part
+    # ==============================
     # # get data
     # get_json_file(raw_data_fl)
     # province_data = json.load(open('nCoV_data.json', 'r', encoding = 'utf8'))['results']
@@ -279,11 +282,34 @@ if __name__ == '__main__':
     # # create province_table and insert data if not exists
     # create_tbl_prov_data(cursor, province_data)
     
+
     
     # # create table for city level
 
     # # create table for country level
 
 
+    # get the data for pandas plot
+    select_sql = 'select *, date(updateTime) as datetime from prov_data where province_id between 0 and 1;'
+    df_all = pd.read_sql(select_sql, con = db1)
+    # print (df.head())
+
     db1.commit()
     db1.close()
+
+
+    # ======================================
+    # plot part
+    # ======================================
+    
+    col_list = [prv_id, prv, cfm_count, dead_count, cured_count, upt_time, dt_time]
+    df_short = df_all[col_list]
+    
+    df_short = df_short.sort_values([prv_id, upt_time])
+    df_short = df_short.drop_duplicates([prv_id, dt_time], keep='last')
+
+    plt.scatter(df_short[dt_time], df_short[cured_count])
+    plt.savefig('test.png')
+ 
+    # sort by pro_id and time -> drop data and only remain the last data in that date
+
