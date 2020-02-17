@@ -93,8 +93,10 @@ def create_ncov_db(cursor):
 
 cnt_id = 'country_id'
 prv_id = 'province_id'
+city_id = 'city_id'
 cnt = 'country'
 prv = 'provinceName'
+city = 'cityName'
 prv_sh = 'provinceShortName' # province short name
 cfm_count = 'confirmedCount'
 c_cfm_count = 'currentConfirmedCount'
@@ -162,6 +164,65 @@ def create_tbl_prov_data(cursor, data_stream = ''):
             
             cursor.execute(_micro_insert_data(one_line_data, tbl_name))
             
+def create_tbl_city_data(cursor, data_stream = ''): 
+    '''
+    input: is a list of dict, if dict does not have cities as key word, skip; default is empty
+    output: to create and insert the province data in it
+    '''
+    tbl_name = 'city_data'
+
+    item_type_dict = {'string': [city, cmt], 
+        'float': [c_cfm_count, cfm_count, spct_count, cured_count, dead_count],
+        'int': [city_id, prv_id],
+        'date': [upt_time]
+        }
+
+    # upt_time: get from province data level; 
+    # prv_id: get from the query
+    # cmt/ c_cfm_count: maybe None
+    list_title = [prv_id, city_id, city, c_cfm_count, cfm_count, spct_count, cured_count, dead_count, cmt, upt_time] 
+
+    # create table
+    sql_title_dict = _get_title_dict(item_type_dict)
+    sql_sentence = _create_tbl(tbl_name, sql_title_dict, list_title)
+    cursor.execute(sql_sentence)
+
+    # insert data
+    if data_stream:
+        # [prv, prv_sh, c_cfm_count, cfm_count, spct_count, cured_count, dead_count, cmt, cnt, upt_time]
+        c_id = 0
+        c_dict = dict() # record how many country has been recorded
+        for d in data_stream: # # d is dict
+            temp_cnt = d[cnt]
+            if len(c_dict) == 0: 
+                c_dict[temp_cnt] = c_id
+            elif temp_cnt not in c_dict.keys(): 
+                c_id += 1
+                c_dict[temp_cnt] = c_id
+            
+            cursor.execute('select province_id from prov_lkup where provinceName = "{}"'.format(d[prv]))
+            temp_prv_id = cursor.fetchall()[0][0]
+            
+            # this is for newly added item: current confirmed people
+            if c_cfm_count in d.keys():
+                temp_cur_confirmed = d[c_cfm_count]
+            else: 
+                temp_cur_confirmed = ''
+
+            # this is for (might) newly added item: comment
+            if cmt in d.keys():
+                temp_comment = d[cmt]
+            else: 
+                temp_comment = ''
+            
+            # this is for None value in the suspectedCount
+            temp_suspected_count = d[spct_count]
+            if temp_suspected_count is None:
+                temp_suspected_count = ''
+            
+            one_line_data = [temp_prv_id, d[prv], d[prv_sh], c_dict[temp_cnt], temp_cnt, temp_cur_confirmed, d[cfm_count], temp_suspected_count, d[cured_count], d[dead_count], temp_comment, _int_2_time(d[upt_time])]
+            
+            cursor.execute(_micro_insert_data(one_line_data, tbl_name))
 
 def _get_title_dict(item_type_dict): 
     '''
@@ -268,9 +329,9 @@ def plot_by_diff_level(df, level_col, fig_name = 'test.png'):
     for i, v in enumerate(levels): 
         temp_df = df.loc[df[level_col] == v, ]
         temp_label = temp_df[prv].iloc[0]
-        print (temp_label)
+        # print (temp_label)
         
-        ax1.scatter(x = temp_df[dt_time], y = temp_df[cured_count], c = colorlist[i], label = temp_label)
+        ax1.scatter(x = temp_df[dt_time], y = temp_df[cured_count], c = colorlist[i], label = temp_label, alpha = .5)
         # print (i)
         # print (temp_df[prv][0])
 
@@ -291,12 +352,12 @@ if __name__ == '__main__':
 
     # province_name = json.load(open('province_name.json', 'r', encoding = 'utf8'))['results']
     
-    # ==============================
-    # province data part
-    # ==============================
+    # # ==============================
+    # # province data part
+    # # ==============================
     # # get data
     # get_json_file(raw_data_fl)
-    # province_data = json.load(open('nCoV_data.json', 'r', encoding = 'utf8'))['results']
+    province_data = json.load(open('nCoV_data.json', 'r', encoding = 'utf8'))['results']
     
     #======================================
     # DATABASE PART
@@ -320,33 +381,37 @@ if __name__ == '__main__':
     # # create province_table and insert data if not exists
     # create_tbl_prov_data(cursor, province_data)
     
-
+    # create cities_table and insert data if not exists
+    create_tbl_city_data(cursor)
     
     # # create table for city level
 
     # # create table for country level
 
 
-    # get the data for pandas plot
-    select_sql = 'select *, date(updateTime) as datetime from prov_data where province_id between 0 and 1;'
-    df_all = pd.read_sql(select_sql, con = db1)
-    # print (df.head())
+    # # get the data for pandas plot
+    # select_sql = 'select *, date(updateTime) as datetime from prov_data where province_id;'
+    # df_all = pd.read_sql(select_sql, con = db1)
+    
 
     db1.commit()
     db1.close()
 
 
-    # ======================================
-    # plot part
-    # ======================================
+    # # ======================================
+    # # plot part
+    # # ======================================
     
-    col_list = [prv_id, prv, cfm_count, dead_count, cured_count, upt_time, dt_time]
-    df_short = df_all[col_list]
+    # # make the col # shorter
+    # col_list = [prv_id, prv, cfm_count, dead_count, cured_count, upt_time, dt_time]
+    # df_short = df_all[col_list]
     
-    df_short = df_short.sort_values([prv_id, upt_time])
-    df_short = df_short.drop_duplicates([prv_id, dt_time], keep='last')
+    # # remove the duplicate data
+    # df_short = df_short.sort_values([prv_id, upt_time])
+    # df_short = df_short.drop_duplicates([prv_id, dt_time], keep='last')
 
-    plot_by_diff_level(df_short, prv_id)
+    # # plot the image
+    # plot_by_diff_level(df_short, prv_id)
     
-    # sort by pro_id and time -> drop data and only remain the last data in that date
+    # # sort by pro_id and time -> drop data and only remain the last data in that date
 
