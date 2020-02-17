@@ -8,7 +8,14 @@ from datetime import datetime
 import pytz
 
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
+
+import matplotlib.cm as cm
+import matplotlib.colors as colors
+from matplotlib import font_manager
+
+
 
 # reference link: 
 # http://cuihuan.net/wuhan/nCoV.html
@@ -242,7 +249,38 @@ def _micro_insert_data(one_line_value, tbl_name):
 def _int_2_time(data): 
     your_dt = datetime.fromtimestamp(int(data)/1000)
     return your_dt
-    
+
+def plot_by_diff_level(df, level_col, fig_name = 'test.png'): 
+    '''
+    df: dataframe
+    level_col: col name 
+    '''
+
+    fontP = font_manager.FontProperties()
+    fontP.set_family('SimHei')
+    fontP.set_size(14)
+
+    levels = df[level_col].unique() # different level in similar list format[0 1]
+    colormap = cm.viridis
+    colorlist = [colors.rgb2hex(colormap(i)) for i in np.linspace(0, .9, len(levels))]
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    for i, v in enumerate(levels): 
+        temp_df = df.loc[df[level_col] == v, ]
+        temp_label = temp_df[prv].iloc[0]
+        print (temp_label)
+        
+        ax1.scatter(x = temp_df[dt_time], y = temp_df[cured_count], c = colorlist[i], label = temp_label)
+        # print (i)
+        # print (temp_df[prv][0])
+
+    plt.xlim(df[dt_time].min() - pd.Timedelta(days=1), df[dt_time].max()+pd.Timedelta(days=1))
+
+    plt.legend(loc = 'upper left', prop = fontP)
+    plt.savefig('test.png')
+ 
+
+
 if __name__ == '__main__': 
     # # ==============================
     # # province name part
@@ -308,8 +346,7 @@ if __name__ == '__main__':
     df_short = df_short.sort_values([prv_id, upt_time])
     df_short = df_short.drop_duplicates([prv_id, dt_time], keep='last')
 
-    plt.scatter(df_short[dt_time], df_short[cured_count])
-    plt.savefig('test.png')
- 
+    plot_by_diff_level(df_short, prv_id)
+    
     # sort by pro_id and time -> drop data and only remain the last data in that date
 
